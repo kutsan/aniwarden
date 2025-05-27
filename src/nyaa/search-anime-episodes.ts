@@ -15,6 +15,7 @@ export async function searchAnimeEpisodes({
   anime: {
     entry: UserAnimeEntry
     episodes: number[]
+    fansubGroupName: string | null
   }
   fansub: string | null
 }): Promise<AnimeEpisodeMatch[]> {
@@ -25,6 +26,7 @@ export async function searchAnimeEpisodes({
   const fansubGroupsSet = new Set(fansubGroups)
   const foundAnimeEpisodes = new Set<number>()
   const matchedAnimeEpisodes: AnimeEpisodeMatch[] = []
+  let fansubGroupNameToCheck: string | null = anime.fansubGroupName
 
   for (const episode of anime.episodes) {
     const query = getAnimeSearchQuery({
@@ -71,6 +73,13 @@ export async function searchAnimeEpisodes({
         continue
       }
 
+      if (
+        fansubGroupNameToCheck !== null &&
+        fansubGroupNameToCheck !== parsedEntry.release_group
+      ) {
+        continue
+      }
+
       if (foundAnimeEpisodes.has(Number(parsedEntry.episode_number))) {
         continue
       }
@@ -104,12 +113,14 @@ export async function searchAnimeEpisodes({
       )
 
       if (episodeMatch) {
+        fansubGroupNameToCheck ??= parsedEntry.release_group
         foundAnimeEpisodes.add(Number(parsedEntry.episode_number))
 
         matchedAnimeEpisodes.push({
           anime: result.item.entry,
           match: item,
           episode: Number(parsedEntry.episode_number),
+          fansubGroupName: parsedEntry.release_group,
         })
       }
     }

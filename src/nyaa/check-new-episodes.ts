@@ -14,6 +14,7 @@ export async function checkNewEpisodes({
   animelist: Array<{
     entry: UserAnimeEntry
     episodes: number[]
+    fansubGroupName: string | null
   }>
 }): Promise<AnimeEpisodeMatch[]> {
   const searchUrl = getNyaaSearchUrl({
@@ -67,6 +68,13 @@ export async function checkNewEpisodes({
       continue
     }
 
+    if (
+      result.item.fansubGroupName !== null &&
+      result.item.fansubGroupName !== parsedEntry.release_group
+    ) {
+      continue
+    }
+
     const animeId = result.item.entry.media.id
 
     const previouslyFoundEpisodes = new Set(foundAnimeEpisodes[animeId] ?? [])
@@ -103,6 +111,7 @@ export async function checkNewEpisodes({
         anime: result.item.entry,
         match: item,
         episode: Number(parsedEntry.episode_number),
+        fansubGroupName: parsedEntry.release_group,
       })
     }
   }

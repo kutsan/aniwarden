@@ -10,4 +10,5 @@ export interface AnimeEpisodeMatch {
   anime: UserAnimeEntry
   episode: number
   match: NyaaEntry
+  fansubGroupName: string | null
 }

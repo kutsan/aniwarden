@@ -2,7 +2,9 @@ import { getUserAnimeList } from './anilist/index.ts'
 import { downloadPath, username } from './config.ts'
 import {
   getDownloadedEpisodes,
+  getFansubGroupName,
   saveDownloadedEpisode,
+  saveFansubGroup,
 } from './database/index.ts'
 import { searchAnimeEpisodes } from './nyaa/index.ts'
 import { getEpisodesToDownload } from './utils/anime-list.ts'
@@ -62,10 +64,13 @@ export async function downloadMissingEpisodes(): Promise<void> {
       `Found missing episodes to download for anime ${item.media.title.english}`,
     )
 
+    const fansubGroupName = await getFansubGroupName(item.media.id)
+
     const matches = await searchAnimeEpisodes({
       anime: {
         entry: item,
         episodes: episodesToDownload,
+        fansubGroupName,
       },
       fansub: '',
     })
@@ -83,6 +88,15 @@ export async function downloadMissingEpisodes(): Promise<void> {
         animeId: match.anime.media.id,
         episodeNumber: match.episode,
       })
+
+      const fansubGroupName = await getFansubGroupName(match.anime.media.id)
+
+      if (fansubGroupName === null && match.fansubGroupName !== null) {
+        await saveFansubGroup({
+          animeId: match.anime.media.id,
+          groupName: match.fansubGroupName,
+        })
+      }
     }
   }
 }

@@ -2,7 +2,9 @@ import { type UserAnimeEntry, getUserAnimeList } from './anilist/index.ts'
 import { downloadPath, username } from './config.ts'
 import {
   getDownloadedEpisodes,
+  getFansubGroupName,
   saveDownloadedEpisode,
+  saveFansubGroup,
 } from './database/index.ts'
 import { checkNewEpisodes } from './nyaa/index.ts'
 import { getEpisodesToDownload } from './utils/anime-list.ts'
@@ -14,6 +16,7 @@ export async function downloadAiringEpisodes(): Promise<void> {
   const airedEpisodesToDownload: Array<{
     entry: UserAnimeEntry
     episodes: number[]
+    fansubGroupName: string | null
   }> = []
 
   for (const item of animelist) {
@@ -48,6 +51,8 @@ export async function downloadAiringEpisodes(): Promise<void> {
       continue
     }
 
+    const fansubGroupName = await getFansubGroupName(item.media.id)
+
     const episodesToDownload = getEpisodesToDownload({
       downloadedEpisodes,
       lastAiredEpisode: lastAiredEpisodeParameter,
@@ -58,6 +63,7 @@ export async function downloadAiringEpisodes(): Promise<void> {
       airedEpisodesToDownload.push({
         entry: item,
         episodes: episodesToDownload,
+        fansubGroupName,
       })
     }
   }
@@ -98,5 +104,14 @@ export async function downloadAiringEpisodes(): Promise<void> {
       animeId: match.anime.media.id,
       episodeNumber: match.episode,
     })
+
+    const fansubGroupName = await getFansubGroupName(match.anime.media.id)
+
+    if (fansubGroupName === null && match.fansubGroupName !== null) {
+      await saveFansubGroup({
+        animeId: match.anime.media.id,
+        groupName: match.fansubGroupName,
+      })
+    }
   }
 }
