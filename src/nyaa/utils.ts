@@ -5,11 +5,11 @@ export function getAnimeSearchQuery({
   quality,
 }: {
   title: string
-  episode: number
+  episode: number | null
   fansub: string | null
   quality: string
 }): string {
-  return `${fansub ?? ''} ${title} ${String(episode).padStart(2, '0')} ${quality}`.trim()
+  return `${fansub ?? ''} ${title} ${episode !== null ? String(episode).padStart(2, '0') : ''} ${quality}`.trim()
 }
 
 export function getNyaaSearchUrl({

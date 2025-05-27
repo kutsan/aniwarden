@@ -72,7 +72,6 @@ export async function downloadMissingEpisodes(): Promise<void> {
         episodes: episodesToDownload,
         fansubGroupName,
       },
-      fansub: '',
     })
 
     for (const match of matches) {

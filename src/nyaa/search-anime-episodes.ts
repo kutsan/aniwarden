@@ -5,19 +5,48 @@ import type { UserAnimeEntry } from '../anilist/types.ts'
 import { fansubGroups, onlyUseSpecifiedFansubGroups } from '../config.ts'
 import { categories, filters } from './constants.ts'
 import { parseRssFeed } from './rss-parser.ts'
-import type { AnimeEpisodeMatch } from './types.ts'
+import type { AnimeEpisodeMatch, NyaaEntry } from './types.ts'
 import { getAnimeSearchQuery, getNyaaSearchUrl } from './utils.ts'
+
+async function searchAnimeTitle({
+  title,
+  episode,
+  fansubGroupName,
+}: {
+  title: string
+  episode: number | null
+  fansubGroupName: string | null
+}): Promise<NyaaEntry[]> {
+  const query = getAnimeSearchQuery({
+    title,
+    episode,
+    fansub: fansubGroupName,
+    quality: '1080p',
+  })
+
+  const searchUrl = getNyaaSearchUrl({
+    query,
+    category: categories.animeEng,
+    filter: filters.none,
+  })
+
+  console.log('Episode Search URL:', searchUrl)
+
+  const response = await fetch(searchUrl)
+  const textContent = await response.text()
+  const items = parseRssFeed(textContent)
+
+  return items
+}
 
 export async function searchAnimeEpisodes({
   anime,
-  fansub,
 }: {
   anime: {
     entry: UserAnimeEntry
     episodes: number[]
     fansubGroupName: string | null
   }
-  fansub: string | null
 }): Promise<AnimeEpisodeMatch[]> {
   const animeSearch = new Fuse([anime], {
     keys: ['entry.media.title.romaji', 'entry.media.title.english'],
@@ -28,25 +57,50 @@ export async function searchAnimeEpisodes({
   const matchedAnimeEpisodes: AnimeEpisodeMatch[] = []
   let fansubGroupNameToCheck: string | null = anime.fansubGroupName
 
+  const nonEpisodeRomajiItems = await searchAnimeTitle({
+    title: anime.entry.media.title.romaji,
+    episode: null,
+    fansubGroupName: fansubGroupNameToCheck,
+  })
+
+  const nonEpisodeEnglishItems =
+    anime.entry.media.title.english !== null
+      ? await searchAnimeTitle({
+          title: anime.entry.media.title.english,
+          episode: null,
+          fansubGroupName: fansubGroupNameToCheck,
+        })
+      : []
+
   for (const episode of anime.episodes) {
-    const query = getAnimeSearchQuery({
+    const romajiItems = await searchAnimeTitle({
       title: anime.entry.media.title.romaji,
       episode,
-      fansub,
-      quality: '1080p',
+      fansubGroupName: fansubGroupNameToCheck,
     })
 
-    const searchUrl = getNyaaSearchUrl({
-      query,
-      category: categories.animeEng,
-      filter: filters.none,
-    })
+    const englishItems =
+      anime.entry.media.title.english !== null
+        ? await searchAnimeTitle({
+            title: anime.entry.media.title.english,
+            episode,
+            fansubGroupName: fansubGroupNameToCheck,
+          })
+        : []
 
-    console.log('Episode Search URL:', searchUrl)
+    const items = [
+      ...romajiItems,
+      ...englishItems,
+      ...nonEpisodeRomajiItems,
+      ...nonEpisodeEnglishItems,
+    ]
 
-    const response = await fetch(searchUrl)
-    const textContent = await response.text()
-    const items = parseRssFeed(textContent)
+    if (items.length === 0) {
+      console.log(
+        `No results found for ${anime.entry.media.title.romaji} episode ${episode} fansub ${fansubGroupNameToCheck}`,
+      )
+      continue
+    }
 
     // Filter out items with no seeders and sort by seeders
     const sortedItems = items
