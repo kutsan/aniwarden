@@ -1,0 +1,13 @@
+# Dependencies
+node_modules
+
+# Local Environment Files
+.env
+*.local
+
+# Debugging Logs
+*.log
+
+# Operating System Files & Miscellaneous
+.DS_Store
+

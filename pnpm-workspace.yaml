@@ -1,0 +1,4 @@
+onlyBuiltDependencies:
+  - anitomy-js
+  - better-sqlite3
+  - esbuild
