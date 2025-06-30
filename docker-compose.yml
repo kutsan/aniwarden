@@ -11,10 +11,9 @@ services:
     volumes:
       - ./downloads:/usr/src/app/downloads
       - ./data:/usr/src/app/data
+      - ./logs:/usr/src/app/logs
+      - ./src:/usr/src/app/src
     develop:
       watch:
-        - action: sync
-          path: ./src
-          target: /usr/src/app/src
         - action: rebuild
           path: package.json

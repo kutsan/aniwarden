@@ -12,7 +12,6 @@ FROM base AS development
 
 WORKDIR /usr/src/app
 
-COPY ./src /usr/src/app/src
 COPY ./package.json /usr/src/app/package.json
 COPY ./pnpm-lock.yaml /usr/src/app/pnpm-lock.yaml
 COPY ./pnpm-workspace.yaml /usr/src/app/pnpm-workspace.yaml
