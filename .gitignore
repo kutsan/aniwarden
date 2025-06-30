@@ -11,3 +11,6 @@ node_modules
 # Operating System Files & Miscellaneous
 .DS_Store
 
+# Editor Directories
+.vscode/
+.idea/
