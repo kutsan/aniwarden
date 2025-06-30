@@ -3,6 +3,7 @@ import Fuse from 'fuse.js'
 
 import type { UserAnimeEntry } from '../anilist/index.ts'
 import { fansubGroups, onlyUseSpecifiedFansubGroups } from '../config.ts'
+import { logger } from '../utils/logger.ts'
 import { categories, filters } from './constants.ts'
 import { parseRssFeed } from './rss-parser.ts'
 import type { AnimeEpisodeMatch } from './types.ts'
@@ -23,7 +24,7 @@ export async function checkNewEpisodes({
     filter: filters.none,
   })
 
-  console.log('Search URL:', searchUrl)
+  logger.info(`Check new episodes on: ${searchUrl}`)
 
   const response = await fetch(searchUrl)
   const textContent = await response.text()
@@ -36,6 +37,8 @@ export async function checkNewEpisodes({
 
   const animeSearch = new Fuse(animelist, {
     keys: ['entry.media.title.romaji', 'entry.media.title.english'],
+    // threshold: 0.4,
+    // includeScore: true,
   })
 
   const fansubGroupsSet = new Set(fansubGroups)
@@ -45,12 +48,24 @@ export async function checkNewEpisodes({
   for (const item of sortedItems) {
     const parsedEntry = anitomy.parseSync(item.title)
 
+    logger.info(
+      {
+        rssEntry: item,
+        parsedEntry,
+      },
+      'Checking RSS entry…',
+    )
+
     if (
       parsedEntry.anime_title === undefined ||
       parsedEntry.episode_number === undefined ||
       Array.isArray(parsedEntry.episode_number) ||
       parsedEntry.video_resolution !== '1080p'
     ) {
+      logger.info(
+        { parsedEntry },
+        'Skipping RSS entry due to missing or invalid fields.',
+      )
       continue
     }
 
@@ -59,61 +74,83 @@ export async function checkNewEpisodes({
       (onlyUseSpecifiedFansubGroups &&
         !fansubGroupsSet.has(parsedEntry.release_group))
     ) {
+      logger.info(
+        { parsedEntry, config: { onlyUseSpecifiedFansubGroups, fansubGroups } },
+        'Skipping RSS entry due to missing or invalid fansub group.',
+      )
       continue
     }
 
     const [result] = animeSearch.search(parsedEntry.anime_title)
 
     if (result === undefined) {
+      logger.info('Skipping RSS entry due to no anime match found.')
       continue
     }
+
+    const animeMatch = result.item
+
+    // if (result.score === undefined || result.score > 0.4) {
+    //   logger.info(
+    //     `Low match score for "${parsedEntry.anime_title}": ${result.score} "${matchingAnime.entry.media.title.romaji}"`,
+    //   )
+    //   continue
+    // }
 
     if (
-      result.item.fansubGroupName !== null &&
-      result.item.fansubGroupName !== parsedEntry.release_group
+      animeMatch.fansubGroupName !== null &&
+      animeMatch.fansubGroupName !== parsedEntry.release_group
     ) {
+      logger.info(
+        { parsedEntry, animeMatch },
+        'Skipping RSS entry due to fansub group mismatch.',
+      )
       continue
     }
 
-    const animeId = result.item.entry.media.id
+    const animeId = animeMatch.entry.media.id
 
     const previouslyFoundEpisodes = new Set(foundAnimeEpisodes[animeId] ?? [])
 
     if (previouslyFoundEpisodes.has(Number(parsedEntry.episode_number))) {
+      logger.info(
+        { parsedEntry, previouslyFoundEpisodes },
+        'Skipping RSS entry due to already found episode.',
+      )
       continue
     }
 
-    const episodeSet = new Set(result.item.episodes)
+    const episodeSet = new Set(animeMatch.episodes)
 
     const episodeMatch = episodeSet.has(Number(parsedEntry.episode_number))
-    console.log(
-      'Search:',
-      JSON.stringify(
-        {
-          torrent: item.title,
-          title: parsedEntry.anime_title,
-          episodeNumber: parsedEntry.episode_number,
-          videoResolution: parsedEntry.video_resolution,
-          releaseInformation: parsedEntry.release_information,
-          releaseGroup: parsedEntry.release_group,
-          episodeMatch,
-        },
-        null,
-        2,
-      ),
-    )
 
-    if (episodeMatch) {
-      foundAnimeEpisodes[animeId] ??= []
-      foundAnimeEpisodes[animeId].push(Number(parsedEntry.episode_number))
+    if (!episodeMatch) {
+      logger.info(
+        { parsedEntry, animeMatch, episodeMatch },
+        'Skipping RSS entry due to episode mismatch.',
+      )
+      continue
+    }
 
-      matchedAnimeEpisodes.push({
-        anime: result.item.entry,
-        match: item,
+    foundAnimeEpisodes[animeId] ??= []
+    foundAnimeEpisodes[animeId].push(Number(parsedEntry.episode_number))
+
+    matchedAnimeEpisodes.push({
+      anime: animeMatch.entry,
+      match: item,
+      episode: Number(parsedEntry.episode_number),
+      fansubGroupName: parsedEntry.release_group,
+    })
+
+    logger.info(
+      {
+        rssEntry: item,
+        animeMatch,
         episode: Number(parsedEntry.episode_number),
         fansubGroupName: parsedEntry.release_group,
-      })
-    }
+      },
+      `Found matching episode ${parsedEntry.episode_number} of "${animeMatch.entry.media.title.romaji}" with fansub group "${parsedEntry.release_group}".`,
+    )
   }
 
   return matchedAnimeEpisodes

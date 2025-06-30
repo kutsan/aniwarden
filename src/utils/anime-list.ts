@@ -1,3 +1,5 @@
+import type { UserAnimeEntry } from '../anilist/types.ts'
+
 export function getEpisodesToDownload({
   downloadedEpisodes,
   lastWatchedEpisode,
@@ -19,4 +21,29 @@ export function getEpisodesToDownload({
     episodesToDownload.push(i)
   }
   return episodesToDownload
+}
+
+export function getLastEpisodeNumberToDownload({
+  item,
+}: {
+  item: UserAnimeEntry
+}): number | null {
+  const { totalEpisodes, nextAiringEpisode } = item.media
+  const lastWatchedEpisode = item.progress
+  const lastAiredEpisode =
+    nextAiringEpisode !== null ? nextAiringEpisode - 1 : null
+
+  if (lastAiredEpisode !== null) {
+    if (lastWatchedEpisode < lastAiredEpisode) {
+      return lastAiredEpisode
+    }
+
+    return null
+  }
+
+  if (totalEpisodes !== null && lastWatchedEpisode < totalEpisodes) {
+    return totalEpisodes
+  }
+
+  return null
 }

@@ -33,7 +33,6 @@ export async function saveFansubGroup({
   animeId: number
   groupName: string
 }): Promise<void> {
-  console.log('insert fansub group', animeId, groupName)
   await db.insert(fansubGroupsTable).values({
     animeId,
     groupName,

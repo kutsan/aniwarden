@@ -7,10 +7,16 @@ import {
   saveFansubGroup,
 } from './database/index.ts'
 import { searchAnimeEpisodes } from './nyaa/index.ts'
-import { getEpisodesToDownload } from './utils/anime-list.ts'
+import {
+  getEpisodesToDownload,
+  getLastEpisodeNumberToDownload,
+} from './utils/anime-list.ts'
 import { downloadFile } from './utils/download-file.ts'
+import { logger } from './utils/logger.ts'
 
 export async function downloadMissingEpisodes(): Promise<void> {
+  logger.info('Checking for missing episodes to download...')
+
   const animelist = await getUserAnimeList(username)
 
   // const airedEpisodesToDownload: Array<{
@@ -19,40 +25,32 @@ export async function downloadMissingEpisodes(): Promise<void> {
   // }> = []
 
   for (const item of animelist) {
-    if (item.media.status !== 'RELEASING') {
+    if (
+      item.media.status !== 'RELEASING' &&
+      item.progress <
+        (item.media.totalEpisodes ?? item.media.nextAiringEpisode ?? 0) - 1
+    ) {
+      logger.info(
+        `Skipping anime ${item.media.title.english} as it is not currently airing.`,
+      )
       continue
     }
 
     const downloadedEpisodes = await getDownloadedEpisodes(item.media.id)
 
-    const { totalEpisodes, nextAiringEpisode } = item.media
     const lastWatchedEpisode = item.progress
-    const lastAiredEpisode =
-      nextAiringEpisode !== null ? nextAiringEpisode - 1 : null
+    const lastAiredEpisode = getLastEpisodeNumberToDownload({ item })
 
-    const lastAiredEpisodeParameter = (() => {
-      if (lastAiredEpisode !== null) {
-        if (lastWatchedEpisode < lastAiredEpisode) {
-          return lastAiredEpisode
-        }
-
-        return null
-      }
-
-      if (totalEpisodes !== null && lastWatchedEpisode < totalEpisodes) {
-        return totalEpisodes
-      }
-
-      return null
-    })()
-
-    if (lastAiredEpisodeParameter === null) {
+    if (lastAiredEpisode === null) {
+      logger.info(
+        `Skipping anime ${item.media.title.english} as it has no aired episodes.`,
+      )
       continue
     }
 
     const episodesToDownload = getEpisodesToDownload({
       downloadedEpisodes,
-      lastAiredEpisode: lastAiredEpisodeParameter,
+      lastAiredEpisode,
       lastWatchedEpisode,
     })
 
@@ -60,7 +58,7 @@ export async function downloadMissingEpisodes(): Promise<void> {
       continue
     }
 
-    console.log(
+    logger.info(
       `Found missing episodes to download for anime ${item.media.title.english}`,
     )
 
@@ -74,14 +72,31 @@ export async function downloadMissingEpisodes(): Promise<void> {
       },
     })
 
+    if (matches.length === 0) {
+      logger.info('No matches found for missing episodes.')
+      return
+    }
+
     for (const match of matches) {
       const fileName = `${match.match.title}.torrent`
 
-      await downloadFile({
+      const downloadResult = await downloadFile({
         url: match.match.link,
         folderPath: downloadPath,
         fileName,
       })
+
+      if (!downloadResult) {
+        logger.error(
+          `Failed to download episode ${match.episode} of ${match.anime.media.title.romaji}`,
+        )
+        continue
+      }
+
+      logger.info(
+        `Downloaded episode ${match.episode} of ${match.anime.media.title.romaji}`,
+        downloadResult,
+      )
 
       await saveDownloadedEpisode({
         animeId: match.anime.media.id,

@@ -1,5 +1,6 @@
 import { XMLParser } from 'fast-xml-parser'
 
+import { logger } from '../utils/logger.ts'
 import { NyaaRssFeedSchema } from './schemas.ts'
 import type { NyaaEntry } from './types.ts'
 
@@ -15,7 +16,7 @@ export function parseRssFeed(textContent: string): NyaaEntry[] {
     }
 
     if (parsedResult.data.rss.channel.item === undefined) {
-      console.log('No items found in RSS feed')
+      logger.info('No items found in RSS feed')
       return []
     }
 
@@ -29,7 +30,7 @@ export function parseRssFeed(textContent: string): NyaaEntry[] {
       seeders: item['nyaa:seeders'],
     }))
   } catch (error) {
-    console.error('Error parsing RSS feed:', error)
+    logger.error('Error parsing RSS feed:', error)
     throw new Error('Failed to parse RSS feed')
   }
 }

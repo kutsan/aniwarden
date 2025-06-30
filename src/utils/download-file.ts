@@ -2,6 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
 
+import { logger } from './logger.ts'
+
 export async function downloadFile({
   url,
   folderPath,
@@ -10,16 +12,16 @@ export async function downloadFile({
   url: string
   folderPath: string
   fileName: string
-}): Promise<void> {
+}): Promise<boolean> {
   try {
     if (!fs.existsSync(folderPath)) {
-      console.log(`Creating directory: ${folderPath}`)
+      logger.info(`Creating directory: ${folderPath}`)
       fs.mkdirSync(folderPath, { recursive: true })
     }
 
     const filePath = path.join(folderPath, fileName)
 
-    console.log(`Workspaceing file from: ${url}`)
+    logger.info(`Workspaceing file from: ${url}`)
     const response = await fetch(url)
 
     if (!response.ok) {
@@ -32,24 +34,27 @@ export async function downloadFile({
       throw new Error('Response body is null.')
     }
 
-    console.log(`Saving file to: ${filePath}`)
+    logger.info(`Saving file to: ${filePath}`)
 
     const fileStream = fs.createWriteStream(filePath)
     await pipeline(response.body, fileStream)
 
-    console.log(`File downloaded successfully to ${filePath}`)
+    logger.info(`File downloaded successfully to ${filePath}`)
+    return true
   } catch (error) {
-    console.error('Error downloading file:', error)
+    logger.error('Error downloading file:', error)
 
     if (fs.existsSync(path.join(folderPath, fileName))) {
       try {
         fs.unlinkSync(path.join(folderPath, fileName))
-        console.log(
+        logger.info(
           `Cleaned up partially downloaded file: ${path.join(folderPath, fileName)}`,
         )
       } catch (cleanupError) {
-        console.error('Error cleaning up file:', cleanupError)
+        logger.error('Error cleaning up file:', cleanupError)
       }
     }
+
+    return false
   }
 }
